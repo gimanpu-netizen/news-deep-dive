@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "Topic": {
+      "title": "Topic",
+      "description": "A news topic or article registered by the user.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the topic or article." },
+        "description": { "type": "string", "description": "A brief description or keywords." },
+        "url": { "type": "string", "format": "uri", "description": "The original URL if applicable." },
+        "originalContent": { "type": "string", "description": "The extracted text content from the URL or input." },
+        "userId": { "type": "string", "description": "The UID of the owner." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the topic was created." },
+        "lastUpdateAt": { "type": "string", "format": "date-time", "description": "When the topic was last researched." }
+      },
+      "required": ["title", "userId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "An AI-generated report summarizing the latest developments on a topic.",
+      "type": "object",
+      "properties": {
+        "topicId": { "type": "string", "description": "The ID of the associated topic." },
+        "content": { "type": "string", "description": "The markdown content of the report." },
+        "userId": { "type": "string", "description": "The UID of the owner." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the report was generated." },
+        "audioData": { "type": "string", "description": "Base64 encoded audio data (optional cache)." }
+      },
+      "required": ["topicId", "content", "userId", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and settings.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/topics/{topicId}": {
+      "schema": "Topic",
+      "description": "Collection of news topics."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of AI-generated reports."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    }
+  }
+}

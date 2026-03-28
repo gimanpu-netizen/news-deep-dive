@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - email: string (required, email format)
+    //   - displayName: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: topics
+    // Fields:
+    //   - title: string (required, min 1, max 200)
+    //   - description: string (optional, max 1000)
+    //   - url: string (optional, URL format)
+    //   - originalContent: string (optional, max 10000)
+    //   - userId: string (required, matches auth.uid)
+    //   - createdAt: timestamp (required)
+    //   - lastUpdateAt: timestamp (required)
+    //
+    // Collection: reports
+    // Fields:
+    //   - topicId: string (required)
+    //   - content: string (required, max 20000)
+    //   - userId: string (required, matches auth.uid)
+    //   - createdAt: timestamp (required)
+    //   - audioData: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && 
+        resource != null && 
+        (request.auth.uid == resource.data.userId || request.auth.uid == resource.id);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.uid == "C9nm0wulcGREXNGvUAO18AvHXHt1" ||
+         ("email" in request.auth.token && request.auth.token.email.lower() == "gimanpu@gmail.com") ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isRecent(time) {
+      return time > request.time - duration.value(5, 'm') &&
+             time < request.time + duration.value(5, 'm');
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url == "" || url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data, isUpdate) {
+      return data.keys().hasAll(['email', 'createdAt', 'role']) &&
+             isValidEmail(data.email) &&
+             data.createdAt is timestamp &&
+             data.role in ['admin', 'user'];
+    }
+
+    function isValidTopic(data, isUpdate) {
+      return data.keys().hasAll(['title', 'userId', 'createdAt', 'lastUpdateAt']) &&
+             data.title is string &&
+             data.userId == (isUpdate ? resource.data.userId : request.auth.uid) &&
+             data.createdAt is timestamp &&
+             data.lastUpdateAt is timestamp;
+    }
+
+    function isValidReport(data, isUpdate) {
+      return data.keys().hasAll(['topicId', 'content', 'userId', 'createdAt']) &&
+             data.topicId is string &&
+             data.content is string &&
+             data.userId == (isUpdate ? resource.data.userId : request.auth.uid) &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data, false);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data, true);
+    }
+
+    match /topics/{topicId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidTopic(request.resource.data, false);
+      allow update: if (isDocOwner() || isAdmin()) && isValidTopic(request.resource.data, true);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidReport(request.resource.data, false);
+      allow update: if (isDocOwner() || isAdmin()) && isValidReport(request.resource.data, true);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
